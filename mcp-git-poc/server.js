@@ -1,5 +1,12 @@
 import express from 'express';
 import cors from 'cors';
+import { promises as fs } from 'fs';
+import { existsSync } from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const app = express();
 const PORT = 3000;
@@ -8,32 +15,50 @@ app.use(cors());
 app.use(express.json());
 
 // ==========================================
-// 1. MOCK GIT WORKSPACE DATA
+// 1. RESOLVE SIMULATION PATHS
 // ==========================================
-let localCommits = [
-  { sha: 'a1b2c3d', message: 'Initial commit' },
-  { sha: 'e5f6g7h', message: 'Add README.md' }
-];
+// We create a physical directory structure on your disk to simulate Git repositories.
+const simDir = path.join(__dirname, 'git_simulation');
+const dirRemote = path.join(simDir, 'remote');
+const dirLocal = path.join(simDir, 'local');
+const dirFeature = path.join(simDir, 'feature');
+const dirOrigin = path.join(simDir, 'origin_main');
 
-let remoteCommits = [
-  { sha: 'a1b2c3d', message: 'Initial commit' },
-  { sha: 'e5f6g7h', message: 'Add README.md' },
-  { sha: 'i9j0k1l', message: 'feat: add database helper' } // remote has 1 extra commit
-];
+// Helper to initialize target files and content
+async function initSimulationFiles() {
+  await fs.mkdir(dirRemote, { recursive: true });
+  await fs.mkdir(dirLocal, { recursive: true });
+  await fs.mkdir(dirFeature, { recursive: true });
+  await fs.mkdir(dirOrigin, { recursive: true });
 
-let featureCommits = [
-  { sha: 'a1b2c3d', message: 'Initial commit' },
-  { sha: 'e5f6g7h', message: 'Add README.md' },
-  { sha: 'm3n4o5p', message: 'docs: update setup instructions' }
-];
+  const fileRemote = path.join(dirRemote, 'document.txt');
+  const fileLocal = path.join(dirLocal, 'document.txt');
+  const fileFeature = path.join(dirFeature, 'document.txt');
 
-let hasFetched = false;
+  // If files do not exist, write default content
+  if (!existsSync(fileRemote)) {
+    await fs.writeFile(fileRemote, '[Commit 1] Initial remote text.\n[Commit 2] Additional text on GitHub.');
+  }
+  if (!existsSync(fileLocal)) {
+    await fs.writeFile(fileLocal, '[Commit 1] Initial remote text.');
+  }
+  if (!existsSync(fileFeature)) {
+    await fs.writeFile(fileFeature, '[Commit 1] Initial remote text.\n[Commit 3] New feature details written locally.');
+  }
+}
+
+// Ensure files are ready at startup
+initSimulationFiles().catch(console.error);
+
+// ==========================================
+// 2. TTL-BASED CACHE CONFIG
+// ==========================================
 let fetchCache = null;
 let cacheExpiresAt = 0;
-const CACHE_TTL_MS = 15000; // 15 seconds Cache window
+const CACHE_TTL_MS = 15000; // 15 seconds
 
 // ==========================================
-// 2. MOCK TASKS EXECUTION
+// 3. BACKGROUND TASK WORKER (TASKS EXTENSION)
 // ==========================================
 const tasks = new Map();
 
@@ -43,35 +68,92 @@ function startBackgroundTask(taskId, operation) {
     name: operation,
     status: 'running',
     progress: 0,
-    logs: ['[Task Init] Connecting to remote Git...']
+    logs: ['[Task Init] Connecting to local repository directory...']
   };
   tasks.set(taskId, task);
 
-  // Background timer increments progress by 25% every 800ms
-  let timer = setInterval(() => {
+  let timer = setInterval(async () => {
     task.progress += 25;
-    task.logs.push(`[Progress ${task.progress}%] Processing Git syncing...`);
+    task.logs.push(`[Progress ${task.progress}%] Simulating command-line Git operations on files...`);
     
     if (task.progress >= 100) {
       task.progress = 100;
       task.status = 'completed';
-      task.logs.push('[Success] Git sync completed.');
       
-      // Perform final memory-based Git merges/pushes
-      if (operation === 'git_fetch') {
-        hasFetched = true;
-        fetchCache = [...remoteCommits];
-        cacheExpiresAt = Date.now() + CACHE_TTL_MS;
-      } else if (operation === 'git_pull') {
-        hasFetched = true;
-        localCommits = [...remoteCommits];
-      } else if (operation === 'git_merge') {
-        const feat = featureCommits.find(c => c.sha === 'm3n4o5p');
-        if (feat && !localCommits.some(c => c.sha === 'm3n4o5p')) {
-          localCommits.push(feat);
+      try {
+        // --- PHYSICAL FILE TRANSACTIONS ---
+        if (operation === 'git_fetch') {
+          task.logs.push('[Files] Copying remote/document.txt to local tracking origin_main/document.txt...');
+          
+          const remotePath = path.join(dirRemote, 'document.txt');
+          const trackingPath = path.join(dirOrigin, 'document.txt');
+          
+          await fs.copyFile(remotePath, trackingPath);
+          const content = await fs.readFile(trackingPath, 'utf8');
+          
+          // Cache the content
+          fetchCache = content;
+          cacheExpiresAt = Date.now() + CACHE_TTL_MS;
+          
+          task.logs.push('[Files] Reference tracking updated successfully.');
+        } 
+        
+        else if (operation === 'git_pull') {
+          task.logs.push('[Files] Merging origin_main/document.txt tracking file into local/document.txt workspace...');
+          
+          const trackingPath = path.join(dirOrigin, 'document.txt');
+          const localPath = path.join(dirLocal, 'document.txt');
+          
+          if (existsSync(trackingPath)) {
+            await fs.copyFile(trackingPath, localPath);
+            task.logs.push('[Files] Fast-forward pull merged successfully.');
+          } else {
+            task.logs.push('[Files Warning] Tracking origin_main/document.txt not found. Fetch first!');
+            task.status = 'failed';
+          }
+        } 
+        
+        else if (operation === 'git_merge') {
+          task.logs.push('[Files] Merging unique lines from feature/document.txt into local/document.txt...');
+          
+          const localPath = path.join(dirLocal, 'document.txt');
+          const featurePath = path.join(dirFeature, 'document.txt');
+          
+          if (existsSync(localPath) && existsSync(featurePath)) {
+            const localContent = await fs.readFile(localPath, 'utf8');
+            const featureContent = await fs.readFile(featurePath, 'utf8');
+            
+            // Clean up lines and merge them
+            const localLines = localContent.split('\n').map(l => l.trim()).filter(Boolean);
+            const featureLines = featureContent.split('\n').map(l => l.trim()).filter(Boolean);
+            
+            const mergedLines = [...localLines];
+            for (const line of featureLines) {
+              if (!mergedLines.includes(line)) {
+                mergedLines.push(line);
+              }
+            }
+            
+            await fs.writeFile(localPath, mergedLines.join('\n'));
+            task.logs.push('[Files] Recursive 3-way line merge completed.');
+          } else {
+            task.logs.push('[Files Error] Unable to find local or feature files.');
+            task.status = 'failed';
+          }
+        } 
+        
+        else if (operation === 'git_push') {
+          task.logs.push('[Files] Uploading local/document.txt changes to remote/document.txt repository...');
+          
+          const localPath = path.join(dirLocal, 'document.txt');
+          const remotePath = path.join(dirRemote, 'document.txt');
+          
+          await fs.copyFile(localPath, remotePath);
+          task.logs.push('[Files] Remote tracking branch matches local.');
         }
-      } else if (operation === 'git_push') {
-        remoteCommits = [...localCommits];
+      } catch (err) {
+        task.logs.push(`[File Error] Action failed: ${err.message}`);
+        task.status = 'failed';
       }
       
       clearInterval(timer);
@@ -80,18 +162,16 @@ function startBackgroundTask(taskId, operation) {
 }
 
 // ==========================================
-// 3. STATELESS JSON-RPC ROUTER (MCP 2.0)
+// 4. STATELESS JSON-RPC ROUTER
 // ==========================================
 app.post('/api/mcp', (req, res) => {
   const { jsonrpc, method, params, id } = req.body;
   const traceparent = params?.traceparent || 'no-trace';
 
-  // Basic check for JSON-RPC
   if (jsonrpc !== '2.0' || !method || id === undefined) {
     return res.status(400).json({ jsonrpc: '2.0', error: { code: -32600, message: 'Invalid RPC' }, id: id || null });
   }
 
-  // Set up simple tracing spans to return in the metadata
   const traceId = traceparent.split('-')[1] || 't_unknown';
   const spans = [];
   const start = Date.now();
@@ -99,9 +179,9 @@ app.post('/api/mcp', (req, res) => {
     spans.push({ name, status, description: desc, durationMs: Date.now() - start });
   };
 
-  // Stateless check: reads authorization directly from the header
+  // Stateless verification
   const isAuthorized = req.headers.authorization === 'Bearer secret-mcp-token-123';
-  recordSpan('Auth-Check', isAuthorized ? 'success' : 'failed', isAuthorized ? 'Bearer Token Verified' : 'Missing Token');
+  recordSpan('Auth-Check', isAuthorized ? 'success' : 'failed', isAuthorized ? 'Verified secret token' : 'Unrecognized token');
 
   if (!isAuthorized) {
     return res.status(401).json({ jsonrpc: '2.0', error: { code: -32001, message: 'Unauthorized' }, id });
@@ -110,16 +190,16 @@ app.post('/api/mcp', (req, res) => {
   if (method === 'tools/call') {
     const toolName = params?.name;
 
+    // Fetch Cache Check
     if (toolName === 'git_fetch') {
       const isCacheValid = fetchCache && Date.now() < cacheExpiresAt;
-      recordSpan('Cache-Check', isCacheValid ? 'hit' : 'miss', isCacheValid ? 'Loaded from memory cache' : 'Cache miss');
+      recordSpan('Cache-Check', isCacheValid ? 'hit' : 'miss', isCacheValid ? 'Served from TTL file cache' : 'File cache miss');
 
       if (isCacheValid) {
         return res.json({
           jsonrpc: '2.0',
           result: {
-            message: 'Fetch loaded from Cache (Cache Hit).',
-            remoteCommits: fetchCache,
+            message: 'Fetch completed instantly from Cache (Cache Hit).',
             cached: true,
             ttlRemaining: Math.max(0, Math.round((cacheExpiresAt - Date.now()) / 1000)),
             traceInfo: { traceId, spans }
@@ -132,14 +212,14 @@ app.post('/api/mcp', (req, res) => {
     if (['git_fetch', 'git_pull', 'git_merge', 'git_push'].includes(toolName)) {
       const taskId = `task_${toolName.replace('git_', '')}_` + Math.random().toString(36).substr(2, 5);
       startBackgroundTask(taskId, toolName);
-      recordSpan('Task-Creation', 'success', `Async task created: ${taskId}`);
+      recordSpan('Task-Creation', 'success', `Spawning async filesystem task: ${taskId}`);
 
       return res.json({
         jsonrpc: '2.0',
         result: {
           taskHandle: taskId,
           status: 'running',
-          message: 'Operation scheduled asynchronously.',
+          message: 'Operation queued.',
           traceInfo: { traceId, spans }
         },
         id
@@ -159,41 +239,62 @@ app.get('/api/tasks/:id', (req, res) => {
   res.json(task);
 });
 
-// Repository state endpoint
-app.get('/api/repo', (req, res) => {
+// Repository state endpoint (Physically reads files from disk)
+app.get('/api/repo', async (req, res) => {
+  let textRemote = 'File not found. Run initialize.';
+  let textLocal = 'File not found.';
+  let textFeature = 'File not found.';
+  let textOrigin = 'File not found (Run Fetch to generate).';
+
+  try { textRemote = await fs.readFile(path.join(dirRemote, 'document.txt'), 'utf8'); } catch(e) {}
+  try { textLocal = await fs.readFile(path.join(dirLocal, 'document.txt'), 'utf8'); } catch(e) {}
+  try { textFeature = await fs.readFile(path.join(dirFeature, 'document.txt'), 'utf8'); } catch(e) {}
+  try { textOrigin = await fs.readFile(path.join(dirOrigin, 'document.txt'), 'utf8'); } catch(e) {}
+
   res.json({
-    local: localCommits,
-    remote: remoteCommits,
-    feature: featureCommits,
-    hasFetched,
+    remote: textRemote,
+    local: textLocal,
+    feature: textFeature,
+    origin: textOrigin,
     isCached: fetchCache && Date.now() < cacheExpiresAt,
     cacheTtlSec: fetchCache ? Math.max(0, Math.round((cacheExpiresAt - Date.now()) / 1000)) : 0
   });
 });
 
-// Reset endpoint
-app.post('/api/repo/reset', (req, res) => {
-  localCommits = [{ sha: 'a1b2c3d', message: 'Initial commit' }, { sha: 'e5f6g7h', message: 'Add README.md' }];
-  remoteCommits = [{ sha: 'a1b2c3d', message: 'Initial commit' }, { sha: 'e5f6g7h', message: 'Add README.md' }, { sha: 'i9j0k1l', message: 'feat: add database helper' }];
-  hasFetched = false;
-  fetchCache = null;
-  cacheExpiresAt = 0;
-  tasks.clear();
-  res.json({ message: 'Reset done.' });
+// Reset endpoint (Physically resets file contents)
+app.post('/api/repo/reset', async (req, res) => {
+  try {
+    await fs.writeFile(path.join(dirRemote, 'document.txt'), '[Commit 1] Initial remote text.\n[Commit 2] Additional text on GitHub.');
+    await fs.writeFile(path.join(dirLocal, 'document.txt'), '[Commit 1] Initial remote text.');
+    await fs.writeFile(path.join(dirFeature, 'document.txt'), '[Commit 1] Initial remote text.\n[Commit 3] New feature details written locally.');
+    
+    const trackingPath = path.join(dirOrigin, 'document.txt');
+    if (existsSync(trackingPath)) {
+      await fs.unlink(trackingPath);
+    }
+    
+    hasFetched = false;
+    fetchCache = null;
+    cacheExpiresAt = 0;
+    tasks.clear();
+    
+    res.json({ message: 'Files successfully reset.' });
+  } catch (err) {
+    res.status(500).json({ error: `Reset failed: ${err.message}` });
+  }
 });
 
 // ==========================================
-// 4. EMBEDDED FRONTEND (HTML + CSS + JS)
+// 5. INLINE FRONTEND DASHBOARD
 // ==========================================
-// We serve the entire frontend visual client on GET / directly from this string.
 const htmlContent = `
 <!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>MCP 2.0 Git POC</title>
+  <title>MCP 2.0 Git File-Based POC</title>
   <style>
-    body { font-family: sans-serif; background: #f3f4f6; color: #1f2937; margin: 0; padding: 20px; }
+    body { font-family: system-ui, sans-serif; background: #f3f4f6; color: #1f2937; margin: 0; padding: 20px; }
     header { background: white; padding: 15px 20px; border-radius: 8px; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center; border: 1px solid #e5e7eb; }
     h1 { margin: 0; font-size: 1.25rem; }
     .dashboard { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
@@ -203,11 +304,13 @@ const htmlContent = `
     button { background: #2563eb; color: white; border: none; padding: 8px 12px; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 0.8rem; }
     button:hover { background: #1d4ed8; }
     .btn-reset { background: #4b5563; }
-    .commits-box { background: #f9fafb; border-left: 4px solid #cbd5e1; padding: 10px; margin-bottom: 10px; border-radius: 0 4px 4px 0; }
+    .file-box { background: #f9fafb; border-left: 4px solid #cbd5e1; padding: 12px; margin-bottom: 15px; border-radius: 0 4px 4px 0; }
     .remote-box { border-left-color: #ef4444; }
     .local-box { border-left-color: #2563eb; }
     .feature-box { border-left-color: #10b981; }
-    .commit { font-family: monospace; font-size: 0.75rem; background: white; border: 1px solid #e5e7eb; padding: 4px; margin-top: 4px; border-radius: 3px; }
+    .origin-box { border-left-color: #f59e0b; }
+    .file-content-label { font-size: 0.7rem; text-transform: uppercase; color: #6b7280; margin-bottom: 4px; font-weight: bold; display: block; }
+    .file-content { font-family: monospace; font-size: 0.8rem; background: white; border: 1px solid #e5e7eb; padding: 8px; border-radius: 4px; white-space: pre-wrap; word-break: break-all; min-height: 40px; }
     .telemetry { background: #f9fafb; border: 1px solid #e5e7eb; padding: 12px; border-radius: 6px; margin-bottom: 15px; }
     .telemetry h3 { margin: 0 0 8px 0; font-size: 0.9rem; color: #4b5563; }
     .progress-bar { background: #e5e7eb; height: 8px; border-radius: 4px; overflow: hidden; margin: 8px 0; }
@@ -222,7 +325,7 @@ const htmlContent = `
 <body>
 
   <header>
-    <h1>📋 MCP 2.0 Git POC (Single File)</h1>
+    <h1>📋 MCP 2.0 Physical File-Based POC</h1>
     <div>
       <label><input type="checkbox" id="auth-check" checked onchange="updateAuthBadge()"> Send Auth Token</label>
       <span id="auth-badge" class="badge badge-ok">Authorized</span>
@@ -230,28 +333,34 @@ const htmlContent = `
   </header>
 
   <main class="dashboard">
-    <!-- LEFT: REPO WORKSPACE -->
+    <!-- LEFT: FILES WORKSPACE -->
     <div class="panel">
-      <h2>📂 Git Repository Workspace</h2>
+      <h2>📂 Physical Git Files on Disk</h2>
+      <p style="font-size:0.8rem; color:#6b7280; margin-bottom: 15px">The content below represents the actual contents of text files inside the <code>git_simulation/</code> folder. Watch them change dynamically as you trigger actions!</p>
+      
       <div class="btn-group">
-        <button onclick="runTool('git_fetch')">Fetch</button>
-        <button onclick="runTool('git_pull')">Pull</button>
-        <button onclick="runTool('git_merge')">Merge</button>
-        <button onclick="runTool('git_push')">Push</button>
-        <button class="btn-reset" onclick="resetRepo()">Reset Repo</button>
+        <button onclick="runTool('git_fetch')">Fetch (Remote ➔ Tracking)</button>
+        <button onclick="runTool('git_pull')">Pull (Tracking ➔ Local)</button>
+        <button onclick="runTool('git_merge')">Merge (Feature ➔ Local)</button>
+        <button onclick="runTool('git_push')">Push (Local ➔ Remote)</button>
+        <button class="btn-reset" onclick="resetRepo()">Reset Files</button>
       </div>
 
-      <div class="commits-box remote-box">
-        <strong>Remote Track Branch (origin/main)</strong>
-        <div id="remote-list">Loading...</div>
+      <div class="file-box remote-box">
+        <span class="file-content-label">GitHub Server File (remote/document.txt)</span>
+        <div id="remote-txt-content" class="file-content">Loading...</div>
       </div>
-      <div class="commits-box local-box">
-        <strong>Local Main Branch (main)</strong>
-        <div id="local-list">Loading...</div>
+      <div class="file-box origin-box">
+        <span class="file-content-label">Local Tracking Branch File (origin_main/document.txt)</span>
+        <div id="origin-txt-content" class="file-content">Loading...</div>
       </div>
-      <div class="commits-box feature-box">
-        <strong>Local Feature Branch (feature-branch)</strong>
-        <div id="feature-list">Loading...</div>
+      <div class="file-box local-box">
+        <span class="file-content-label">Local Developer Workspace File (local/document.txt)</span>
+        <div id="local-txt-content" class="file-content">Loading...</div>
+      </div>
+      <div class="file-box feature-box">
+        <span class="file-content-label">Feature Workspace Branch File (feature/document.txt)</span>
+        <div id="feature-txt-content" class="file-content">Loading...</div>
       </div>
     </div>
 
@@ -277,7 +386,7 @@ const htmlContent = `
           </div>
           <pre id="task-logs" style="background:#1f2937; color:#f9fafb; max-height:80px"></pre>
         </div>
-        <div id="task-empty" class="empty-text" style="font-size: 0.8rem; color:#9ca3af; font-style:italic">No background tasks running.</div>
+        <div id="task-empty" style="font-size: 0.8rem; color:#9ca3af; font-style:italic">No active background tasks.</div>
       </div>
 
       <!-- Tracing list -->
@@ -297,7 +406,6 @@ const htmlContent = `
   </main>
 
   <script>
-    // Visual Auth Checkbox handler
     function updateAuthBadge() {
       const checked = document.getElementById('auth-check').checked;
       const badge = document.getElementById('auth-badge');
@@ -306,28 +414,19 @@ const htmlContent = `
         badge.className = "badge badge-ok";
       } else {
         badge.innerText = "No Token";
-        badge.className = "badge badge-danger";
+        badge.className = "badge badge-err";
       }
     }
 
-    // Refresh visual branches
-    async function loadRepoState() {
+    async function loadFilesState() {
       const res = await fetch('/api/repo');
       const data = await res.json();
       
-      const render = (list, boxId) => {
-        const box = document.getElementById(boxId);
-        box.innerHTML = '';
-        list.forEach(c => {
-          box.innerHTML += '<div class="commit">SHA: <b>' + c.sha + '</b> - ' + c.message + '</div>';
-        });
-      };
+      document.getElementById('remote-txt-content').innerText = data.remote;
+      document.getElementById('origin-txt-content').innerText = data.origin;
+      document.getElementById('local-txt-content').innerText = data.local;
+      document.getElementById('feature-txt-content').innerText = data.feature;
 
-      render(data.remote, 'remote-list');
-      render(data.local, 'local-list');
-      render(data.feature, 'feature-list');
-
-      // Update Cache Indicator
       const cacheStatus = document.getElementById('cache-status');
       if (data.isCached) {
         cacheStatus.innerHTML = '<span class="badge badge-ok">CACHE HIT</span> Fetch cached. Expires in ' + data.cacheTtlSec + ' seconds.';
@@ -336,7 +435,6 @@ const htmlContent = `
       }
     }
 
-    // Call stateless MCP 2.0 tool
     async function runTool(toolName) {
       const traceId = 't_' + Math.random().toString(36).substr(2, 5);
       const traceparent = '00-' + traceId + '-spanclient-01';
@@ -372,7 +470,7 @@ const htmlContent = `
 
         const result = data.result;
 
-        // Render Spans list
+        // Render Tracing Spans
         if (result.traceInfo) {
           const spansBox = document.getElementById('trace-spans');
           spansBox.innerHTML = '';
@@ -385,7 +483,7 @@ const htmlContent = `
         if (result.taskHandle) {
           pollTask(result.taskHandle);
         } else {
-          loadRepoState();
+          loadFilesState();
         }
 
       } catch (err) {
@@ -393,7 +491,6 @@ const htmlContent = `
       }
     }
 
-    // Poll background task progress
     let pollInterval = null;
     function pollTask(taskId) {
       if (pollInterval) clearInterval(pollInterval);
@@ -417,17 +514,18 @@ const htmlContent = `
             document.getElementById('task-card').style.display = 'none';
             document.getElementById('task-empty').style.display = 'block';
           }, 3000);
-          loadRepoState();
+          loadFilesState();
         }
       }, 400);
     }
 
-    // Reset repository state
     async function resetRepo() {
-      const res = await fetch('/api/repo/reset', { method: 'POST' });
-      await res.json();
-      document.getElementById('rpc-log').innerText = 'State reset.';
-      loadRepoState();
+      if (confirm('Reset files back to default starting text?')) {
+        const res = await fetch('/api/repo/reset', { method: 'POST' });
+        await res.json();
+        document.getElementById('rpc-log').innerText = 'Simulation files reset.';
+        loadFilesState();
+      }
     }
 
     function logRpc(text) {
@@ -437,20 +535,18 @@ const htmlContent = `
       box.scrollTop = box.scrollHeight;
     }
 
-    // Run first load
-    loadRepoState();
+    loadFilesState();
   </script>
 </body>
 </html>
 `;
 
-// GET / returns the entire HTML page
 app.get('/', (req, res) => {
   res.send(htmlContent);
 });
 
 app.listen(PORT, () => {
   console.log(`\n======================================================`);
-  console.log(`🚀 Consolidated MCP 2.0 Server: http://localhost:${PORT}`);
+  console.log(`🚀 Consolidated File-Based Server: http://localhost:${PORT}`);
   console.log(`======================================================\n`);
 });

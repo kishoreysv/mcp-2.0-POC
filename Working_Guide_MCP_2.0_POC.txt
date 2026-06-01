@@ -1,0 +1,112 @@
+================================================================================
+WORKING GUIDE: PHYSICAL FILE-BASED MODEL CONTEXT PROTOCOL (MCP) 2.0 POC
+================================================================================
+
+This guide describes how the physical, file-based Model Context Protocol (MCP) 2.0
+Git Proof of Concept operates under the hood, explaining how it reads/writes files 
+on your hard drive to simulate Git operations, and how it demonstrates MCP 2.0 theory.
+
+---
+
+1. PHYSICAL DIRECTORY STRUCTURE ON DISK
+--------------------------------------------------------------------------------
+When you start the Node server, it automatically initializes a directory named
+"git_simulation/" inside the project folder:
+
+  mcp-git-poc/
+  └── git_simulation/
+      ├── remote/
+      │   └── document.txt      <-- Represents the file hosted on GitHub Server
+      ├── local/
+      │   └── document.txt      <-- Represents your local active workspace file
+      ├── feature/
+      │   └── document.txt      <-- Represents a separate branch (feature updates)
+      └── origin_main/
+          └── document.txt      <-- Represents the local remote-tracking cache
+
+You can open these directories in your file explorer (or a text editor like Notepad)
+and watch their contents change in real-time as you click the buttons on the dashboard!
+
+
+2. PHYSICAL FILE OPERATIONS EXPLAINED
+--------------------------------------------------------------------------------
+
+* FETCH (Remote ➔ Tracking):
+  - Action: Reads the content of "git_simulation/remote/document.txt".
+  - Action: Copies it physically to "git_simulation/origin_main/document.txt" on disk.
+  - Caching Benefit: The content of the file is loaded into the server's RAM Cache 
+    with a 15-second Time-to-Live (TTL). If you fetch again within 15 seconds, the 
+    server skips checking the file and returns a "Cache Hit" instantly.
+
+* PULL (Tracking ➔ Local):
+  - Action: Reads the local remote-tracking file "git_simulation/origin_main/document.txt".
+  - Action: Copies/Merges it directly into "git_simulation/local/document.txt".
+  - Behavior: If you haven't run "Fetch" first, the tracking file won't exist yet, 
+    and the Pull operation will fail (just like real Git!).
+
+* MERGE (Feature ➔ Local):
+  - Action: Reads the contents of "git_simulation/feature/document.txt" and 
+    "git_simulation/local/document.txt".
+  - Action: Performs a line-by-line comparison of unique lines from both.
+  - Action: Merges new lines from the feature branch document into the local document, 
+    writing the result back to "git_simulation/local/document.txt".
+
+* PUSH (Local ➔ Remote):
+  - Action: Reads your active local working file "git_simulation/local/document.txt".
+  - Action: Copies it directly over the GitHub server file at "git_simulation/remote/document.txt".
+  - Visual: The Remote box on the screen updates to match your local file changes.
+
+
+3. STEP-BY-STEP SIMULATION WALKTHROUGH
+--------------------------------------------------------------------------------
+To see the POC in action, follow these exact steps on the dashboard UI:
+
+- Step 1: Examine Initial State
+  * Remote has: "[Commit 1] Initial remote text." and "[Commit 2] Additional text on GitHub."
+  * Local has only: "[Commit 1] Initial remote text." (It is missing Commit 2).
+  * Origin has: "File not found (Run Fetch)."
+  * Feature has: "[Commit 1] Initial remote text." and "[Commit 3] New feature details..."
+
+- Step 2: Run Fetch
+  * Click the "Fetch" button.
+  * A background Task starts. You will see progress logs stream in the Tasks telemetry box.
+  * Once done, the "origin_main/document.txt" box updates and shows the remote commits!
+  * If you click "Fetch" again immediately, you'll see a green "CACHE HIT" badge, 
+    proving that it loaded instantly from server memory cache.
+
+- Step 3: Run Pull
+  * Click the "Pull" button.
+  * The background task copies the origin tracking text into your "local/" file.
+  * The Local Developer Workspace file updates, now containing Commit 2!
+
+- Step 4: Merge Feature Branch
+  * Click the "Merge" button.
+  * The server reads "feature/document.txt" and merges its lines into "local/document.txt".
+  * The Local box updates, showing all commits: 1, 2, and 3 merged together!
+
+- Step 5: Push Changes
+  * Click the "Push" button.
+  * The local file is written over the remote file.
+  * The Remote box updates to show Commit 3, successfully syncing local changes to GitHub!
+
+
+4. MCP 2.0 TECHNICAL ARCHITECTURE DETAILS
+--------------------------------------------------------------------------------
+
+* Stateless core:
+  No sessions are saved. Every tool invocation POST request includes:
+  `Authorization: Bearer secret-mcp-token-123`
+  If you uncheck the "Send Auth Token" checkbox in the header, the server rejects the 
+  JSON-RPC call with an Unauthorized payload error, showing that each call acts independently.
+
+* Tasks Extension:
+  Since file operations and network queries are slow, the server doesn't hold the connection open.
+  It sends back a "Task Handle" (e.g., `task_fetch_ab8e3`) and completes the POST request.
+  The client browser repeatedly queries `GET /api/tasks/task_fetch_ab8e3` to read progress 
+  bars and stream logs.
+
+* Distributed Tracing:
+  For each call, the client generates a unique trace parent (e.g. `00-t_abc123-spanclient-01`).
+  The server measures execution intervals for each step (Auth Check, Cache check, file copying) 
+  and passes these span blocks back to the client to render in the Tracing logs box.
+================================================================================
