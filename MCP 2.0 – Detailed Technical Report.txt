@@ -1,0 +1,198 @@
+MCP 2.0 – Detailed Technical Report
+Introduction
+MCP (Model Context Protocol) is a standardized communication protocol enabling AI systems, APIs,
+databases, and applications to communicate efficiently.
+What is MCP?
+MCP standardizes communication between AI assistants and external systems, reducing integration
+complexity and improving scalability.
+Major Features of MCP 2.0
+• Stateless Core Architecture
+• MCP Apps
+• Tasks Extension
+• Distributed Tracing
+• Authorization Improvements
+• Better Caching
+• Deprecation Policies
+Stateless Architecture
+Every request is independent. Servers do not maintain session state, improving scalability and
+reliability.
+Stateful vs Stateless Diagram
+Stateful:
+Client → Server (Stores Session)
+Stateless:
+Request 1 → Server
+Request 2 → Server
+Each request is independent.
+Caching Improvements
+MCP 2.0 supports TTL-based caching and cache scopes for improved performance.
+Distributed Tracing
+Tracing helps monitor requests across multiple services and identify bottlenecks.
+Tracing Diagram
+Client → Service A → Service B → Service C
+Trace context flows across all services.
+MCP Apps
+MCP Apps allow interactive HTML interfaces such as dashboards, forms, and widgets.
+Tasks Extension
+Tasks extension enables long-running async operations using task handles and polling mechanisms.
+Authorization Hardening
+Security improvements include issuer validation, refresh token handling, and application-type
+declarations.
+Deprecation Policy
+MCP 2.0 formalizes feature deprecation for predictable upgrades and reduced breaking changes.
+Production Benefits
+• Better scalability
+• Enterprise readiness
+• Better observability
+• Improved security
+• Async processing support
+Real World Use Cases
+• AI tool calling
+• Enterprise AI systems
+• Autonomous agents
+• Workflow automation
+Conclusion
+MCP 2.0 is a major evolution in AI communication protocols, focusing on scalability, security,
+observability, and enterprise-ready architecture.
+Feature Summary Table
+Feature Benefit
+Stateless Core Better Scalability
+Tasks Extension Async Processing
+Distributed Tracing Better Debugging
+Authorization Improved Security
+Caching Lower Latency
+MCP Apps Interactive Interfaces
+
+                ~Authorization Architecture
+
++--------+       Auth Request      +----------------+
+| Client | ----------------------> | Auth Server    |
++--------+                         +----------------+
+       |                                     |
+       | Validate ISS                        |
+       | Verify Scope                        |
+       | Refresh Tokens                      |
+       v                                     v
++------------------------------------------------+
+| Secure Authorized Communication                |
++------------------------------------------------+
+
+
+
+                                ~Task Flow
+
++--------+      Request      +-------------+
+| Client | ----------------> | MCP Server  |
++--------+                   +------+------+
+                                     |
+                                     v
+                             Create Task Handle
+                                     |
+                                     v
+                           Background Processing
+                                     |
+                                     v
+                            Task Status Updates
+                                     |
+                                     v
+                        Poll / Subscribe for Result
+
+
+
+
+
+
+                            ~Workflow
+
+
++-------------+
+| MCP Server  |
++------+------+
+       |
+       | UI Metadata + HTML/CSS/JS
+       v
++-------------------+
+| Host Application  |
+| Sandbox iframe    |
++-------------------+
+       |
+       | JSON-RPC
+       v
++-------------------+
+| Tool Execution    |
++-------------------+
+
+
+
+
+
+                        ~Tracing Flow Diagram
+
++--------+     +-----------+     +-----------+     +-----------+
+| Client | --> | Service A | --> | Service B | --> | Service C |
++--------+     +-----------+     +-----------+     +-----------+
+       \_______________________________________________________/
+                         Trace Context Propagation
+
+
+
+                    ~Caching Architecture
+
+
++--------+       Request       +-------------+
+| Client | ------------------> | MCP Server  |
++--------+                     +------+------+
+                                      |
+                              Cache Available?
+                                      |
+                    +-----------------+----------------+
+                    |                                  |
+                  Yes                                 No
+                    |                                  |
+                    v                                  v
+             Return Cached                     Fetch Fresh Data
+                  Result                              |
+                                                       v
+                                                Store in Cache
+
+
+
+
+
+
+                            ~High-Level Architecture
+
+
+
++------------------+
+|   AI Assistant   |
+|  (ChatGPT etc.)  |
++--------+---------+
+         |
+         | MCP Protocol
+         v
++------------------+
+|    MCP Server    |
++--------+---------+
+         |
+         +----------------------+
+         |                      |
+         v                      v
++---------------+      +----------------+
+| Databases     |      | External APIs  |
++---------------+      +----------------+
+         |
+         v
++----------------+
+| Websites/Apps  |
++----------------+
+
+
+
+
+Stateless
+
+Request 1 ---> Server
+Request 2 ---> Server
+Request 3 ---> Server
+
+Each request is independent.

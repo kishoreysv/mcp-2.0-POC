@@ -1,0 +1,14 @@
+{
+  "name": "mcp-git-poc",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Proof of Concept for Git operations using Model Context Protocol (MCP) 2.0 concepts",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^4.19.2"
+  }
+}
