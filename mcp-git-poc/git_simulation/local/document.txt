@@ -1,5 +1,2 @@
-<<<<<<< HEAD
-sriya vanaja
+
 =======
-anirudh ravichandran
->>>>>>> 1f7ffca5b1eb4b84e9d2170d9142f52e094a07af
