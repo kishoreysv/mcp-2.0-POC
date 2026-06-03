@@ -92,7 +92,10 @@ def init_real_git_simulation():
             
             # Restore any stashed changes
             if stashed:
-                run_git_command("stash pop")
+                try:
+                    run_git_command("stash pop")
+                except Exception:
+                    pass
                 
             print("Feature branch initialized successfully.")
     except Exception as e:
@@ -716,6 +719,6 @@ def home():
 # Start Python server
 if __name__ == '__main__':
     print("\n======================================================")
-    print("🚀 Python Flask server starting on http://127.0.0.1:3000")
+    print("Python Flask server starting on http://127.0.0.1:3000")
     print("======================================================\n")
     app.run(host='0.0.0.0', port=3000, debug=False)
