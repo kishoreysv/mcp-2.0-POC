@@ -1,2 +1,2 @@
 [Commit 1] Initial remote text.
-[Commit 2] Additional text on GitHub.
+[Commit 2] Additional text on GitHub. new git hub
