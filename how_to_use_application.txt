@@ -1,0 +1,72 @@
+================================================================================
+HOW TO USE APPLICATION: PYTHON FLASK BACKEND WITH REAL GIT OPERATIONS
+================================================================================
+
+This document describes how to set up, run, and verify the Python-based
+Model Context Protocol (MCP) 2.0 Git Proof of Concept.
+
+---
+
+1. PREREQUISITES
+----------------
+Make sure you have:
+  - Python 3 installed.
+  - Flask installed (run `pip install flask` if not already installed).
+  - Git configured on your command line (with credentials set up to push to your
+    GitHub repository).
+
+---
+
+2. RUNNING THE APPLICATION
+--------------------------
+1. Open your terminal in the project directory:
+   cd c:\Users\2877275\Desktop\draft
+
+2. Run the Python backend:
+   python mcp-git-poc/server.py
+
+3. The server will start and output:
+   * Running on http://127.0.0.1:3000
+
+4. Open your web browser and navigate to:
+   http://localhost:3000
+
+---
+
+3. TESTING THE WORKFLOW STEPS
+-----------------------------
+
+Follow these steps on the web dashboard to see the real Git operations:
+
+- Step 1: Observe Remote GitHub state
+  * The "GitHub Server File" box reads the actual file directly from GitHub.
+  * Try changing the file content directly on GitHub via the web interface.
+  * Refresh the dashboard; you will see the new content reflect in the 
+    "GitHub Server File" box!
+
+- Step 2: Run Fetch
+  * Click the "Fetch (Remote -> Tracking)" button.
+  * The backend runs `git fetch origin` in the background.
+  * Once completed, the "Local Tracking Branch File" box will update using
+    `git show origin/<branch>:...` to match what is on GitHub.
+  * Fetching again within 15 seconds will trigger a "CACHE HIT", loading from
+    memory cache instantly.
+
+- Step 3: Run Pull
+  * Click the "Pull (Tracking -> Local)" button.
+  * The backend runs `git pull origin <branch>` in the background.
+  * Your local workspace file updates to sync with GitHub.
+
+- Step 4: Merge Feature Branch
+  * Click the "Merge (Feature -> Local)" button.
+  * The backend runs `git merge feature` in the background.
+  * The changes from the local `feature` branch are merged into your workspace.
+
+- Step 5: Push to GitHub
+  * Click the "Push (Local -> Remote)" button.
+  * The backend checks if there are uncommitted changes locally, commits them 
+    automatically if any, and runs `git push origin <branch>`.
+  * Once the push completes, the "GitHub Server File" box will refresh and 
+    display the merged contents, proving the changes are live on GitHub!
+
+================================================================================

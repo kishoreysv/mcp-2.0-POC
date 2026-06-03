@@ -1,0 +1,62 @@
+================================================================================
+IMPLEMENTATION PLAN: PYTHON FLASK BACKEND WITH REAL GIT OPERATIONS
+================================================================================
+
+This plan details the migration of the MCP 2.0 Git Proof of Concept from Node.js
+(Express) to a Python (Flask) backend that executes actual Git operations on the
+underlying local repository and syncs changes directly to GitHub.
+
+---
+
+1. ARCHITECTURAL OVERVIEW
+-------------------------
+The application will consist of a Python Flask backend serving a single-page
+HTML/CSS/JS frontend dashboard. Rather than mocking files on the disk, it runs 
+command-line Git operations to interact with:
+  - Your actual local workspace file: `mcp-git-poc/git_simulation/local/document.txt`
+  - Your actual remote tracking branch (`origin/main` or current branch)
+  - Your actual GitHub repository remote (`https://github.com/kishoreysv/mcp-2.0-POC.git`)
+
+---
+
+2. COMPONENT DESIGN & MIGRATION DETAILS
+---------------------------------------
+
+* Programming Language: Python 3.14+
+* Web Framework: Flask (lightweight, easy to read, minimal boilerplates)
+* Real Git Integration: Uses Python's built-in `subprocess` module to execute
+  commands on the command-line inside the workspace repository.
+
+* Key REST APIs Implemented in Flask:
+  - GET `/`: Serves the dashboard HTML.
+  - GET `/api/repo`: Reads the states of the real files on GitHub, in the local
+    workspace, on the origin tracking branch, and on the feature branch.
+  - POST `/api/repo/reset`: Restores the local tracking files, deletes the
+    local `feature` branch, and re-initializes.
+  - POST `/api/mcp`: The JSON-RPC 2.0 endpoint handling authorization tokens,
+    caching (TTL 15s), and async background task creation.
+  - GET `/api/tasks/<task_id>`: Endpoint to poll for background task progress
+    and stream logs.
+
+---
+
+3. DYNAMIC GITHUB INTEGRATION
+-----------------------------
+To show the actual remote files on GitHub, the server will:
+  1. Retrieve your current remote URL using `git config --get remote.origin.url`.
+  2. Parse the repository path (e.g. `kishoreysv/mcp-2.0-POC`).
+  3. Formulate a raw GitHub URL to fetch the file contents from GitHub:
+     `https://raw.githubusercontent.com/<user>/<repo>/<branch>/mcp-git-poc/git_simulation/local/document.txt`
+  4. Perform a real HTTPS request from the Python backend to fetch this text.
+
+---
+
+4. BACKGROUND TASK MANAGEMENT (TASKS EXTENSION)
+-----------------------------------------------
+* Python uses standard `threading` to spin off asynchronous Git commands in
+  the background.
+* The main server immediately returns a `taskHandle` and logs/progress are
+  updated as the background thread executes commands, preventing the client
+  request from blocking.
+
+================================================================================
