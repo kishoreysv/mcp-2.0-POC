@@ -1,9 +1,3 @@
-<<<<<<< HEAD
-=======
-=======
-sriya vanaja
-=======
-
-
->>>>>>> d87f70c1368e0055be4580d68738441f53bfbe97
-[Commit 3] New feature details written locally.
+[Commit 1] Initial remote text.
+[Commit 2] Additional text on GitHub.
+[Commit 3] New feature details written locally (Resolved!).
