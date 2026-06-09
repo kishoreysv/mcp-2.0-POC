@@ -1,4 +1,3 @@
-
 <<<<<<< HEAD
 =======
 =======
@@ -7,3 +6,4 @@ sriya vanaja
 
 
 >>>>>>> d87f70c1368e0055be4580d68738441f53bfbe97
+[Commit 3] New feature details written locally.
